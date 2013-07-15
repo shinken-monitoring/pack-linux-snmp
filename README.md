@@ -1,4 +1,4 @@
-pack-linux
+pack-linux-snmp
 ==========
 
-Configuration pack for Linux hosts
+Configuration pack for Linux hosts based on SNMP checks
