@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w 
+#!/usr/bin/perl -w
 ############################## check_snmp_mem ##############
 # Version : 1.1
 # Date : Jul 09 2006
@@ -6,7 +6,7 @@
 # Help : http://www.manubulon.com/nagios/
 # Licence : GPL - http://www.fsf.org/licenses/gpl.txt
 # Contrib : Jan Jungmann
-# TODO : 
+# TODO :
 #################################################################
 #
 # Help : ./check_snmp_mem.pl -h
@@ -18,14 +18,14 @@ use Getopt::Long;
 
 # Nagios specific
 
-use lib "/usr/local/nagios/libexec";
+use lib "/var/lib/shinken/libexec";
 use utils qw(%ERRORS $TIMEOUT);
 #my $TIMEOUT = 15;
 #my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 
 # SNMP Datas
 
-# Net-snmp memory 
+# Net-snmp memory
 
 my $nets_ram_free	= "1.3.6.1.4.1.2021.4.6.0";  # Real memory free
 my $nets_ram_total	= "1.3.6.1.4.1.2021.4.5.0";  # Real memory total
@@ -34,7 +34,7 @@ my $nets_swap_free	= "1.3.6.1.4.1.2021.4.4.0";  # swap memory free
 my $nets_swap_total	= "1.3.6.1.4.1.2021.4.3.0";  # Swap memory total
 my @nets_oids		= ($nets_ram_free,$nets_ram_total,$nets_swap_free,$nets_swap_total,$nets_ram_cache);
 
-# Cisco 
+# Cisco
 
 my $cisco_mem_pool      = "1.3.6.1.4.1.9.9.48.1.1.1"; # Cisco memory pool
 my $cisco_index         = "1.3.6.1.4.1.9.9.48.1.1.1.2"; # memory pool name and index
@@ -51,7 +51,7 @@ my $hp_mem_total	= "1.3.6.1.4.1.11.2.14.11.5.1.1.2.2.1.1.5"; # Total Bytes
 my $hp_mem_free		= "1.3.6.1.4.1.11.2.14.11.5.1.1.2.2.1.1.6"; # Free Bytes
 my $hp_mem_free_seg	= "1.3.6.1.4.1.11.2.14.11.5.1.1.2.2.1.1.3"; # Free segments
 
-# AS/400 
+# AS/400
 
 # Windows NT/2K/(XP?)
 
@@ -123,25 +123,25 @@ sub help {
 -2, --v2c
    Use snmp v2c
 -l, --login=LOGIN ; -x, --passwd=PASSWD
-   Login and auth password for snmpv3 authentication 
-   If no priv password exists, implies AuthNoPriv 
+   Login and auth password for snmpv3 authentication
+   If no priv password exists, implies AuthNoPriv
 -X, --privpass=PASSWD
    Priv password for snmpv3 (AuthPriv protocol)
 -L, --protocols=<authproto>,<privproto>
    <authproto> : Authentication protocol (md5|sha : default md5)
-   <privproto> : Priv protocole (des|aes : default des) 
+   <privproto> : Priv protocole (des|aes : default des)
 -P, --port=PORT
    SNMP port (Default 161)
 -w, --warn=INTEGER | INT,INT
-   warning level for memory in percent (0 for no checks) 
-     Default (-N switch) : comma separated level for Real Memory and Swap 
+   warning level for memory in percent (0 for no checks)
+     Default (-N switch) : comma separated level for Real Memory and Swap
      -I switch : warning level
 -c, --crit=INTEGER | INT,INT
    critical level for memory in percent (0 for no checks)
-     Default (-N switch) : comma separated level for Real Memory and Swap 
+     Default (-N switch) : comma separated level for Real Memory and Swap
      -I switch : critical level
 -N, --netsnmp (default)
-   check linux memory & swap provided by Net SNMP 
+   check linux memory & swap provided by Net SNMP
 -m, --memcache
    include cached memory in used memory (only with Net-SNMP)
 -I, --cisco
@@ -177,7 +177,7 @@ sub check_options {
 	'l:s'	=> \$o_login,		'login:s'	=> \$o_login,
 	'x:s'	=> \$o_passwd,		'passwd:s'	=> \$o_passwd,
 	'X:s'	=> \$o_privpass,		'privpass:s'	=> \$o_privpass,
-	'L:s'	=> \$v3protocols,		'protocols:s'	=> \$v3protocols,   
+	'L:s'	=> \$v3protocols,		'protocols:s'	=> \$v3protocols,
 	't:i'   => \$o_timeout,       	'timeout:i'     => \$o_timeout,
 	'V'	=> \$o_version,		'version'	=> \$o_version,
 	'I'	=> \$o_cisco,		'cisco'		=> \$o_cisco,
@@ -191,7 +191,7 @@ sub check_options {
     );
     if (defined ($o_help) ) { help(); exit $ERRORS{"UNKNOWN"}};
     if (defined($o_version)) { p_version(); exit $ERRORS{"UNKNOWN"}};
-    if ( ! defined($o_host) ) # check host and filter 
+    if ( ! defined($o_host) ) # check host and filter
 	{ print "No host defined!\n";print_usage(); exit $ERRORS{"UNKNOWN"}}
     # check snmp information
     if ( !defined($o_community) && (!defined($o_login) || !defined($o_passwd)) )
@@ -206,30 +206,30 @@ sub check_options {
 	  if ((defined ($v3proto[1])) && (!defined($o_privpass))) {
 	    print "Put snmp V3 priv login info with priv protocols!\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
 	}
-	if (defined($o_timeout) && (isnnum($o_timeout) || ($o_timeout < 2) || ($o_timeout > 60))) 
+	if (defined($o_timeout) && (isnnum($o_timeout) || ($o_timeout < 2) || ($o_timeout > 60)))
 	  { print "Timeout must be >1 and <60 !\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
 	if (!defined($o_timeout)) {$o_timeout=5;}
 	#Check Warning and crit are present
     if ( ! defined($o_warn) || ! defined($o_crit))
  	{ print "Put warning and critical values!\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
     # Get rid of % sign
-    $o_warn =~ s/\%//g; 
+    $o_warn =~ s/\%//g;
     $o_crit =~ s/\%//g;
     # if -N or -E switch , undef $o_netsnmp
     if (defined($o_cisco) || defined($o_hp) ) {
       $o_netsnmp=undef;
-      if ( isnnum($o_warn) || isnnum($o_crit)) 
+      if ( isnnum($o_warn) || isnnum($o_crit))
 	{ print "Numeric value for warning or critical !\n";print_usage(); exit $ERRORS{"UNKNOWN"} }
-      if ( ($o_crit != 0) && ($o_warn > $o_crit) ) 
+      if ( ($o_crit != 0) && ($o_warn > $o_crit) )
         { print "warning <= critical ! \n";print_usage(); exit $ERRORS{"UNKNOWN"}}
     }
     if (defined($o_netsnmp)) {
       my @o_warnL=split(/,/ , $o_warn);
       my @o_critL=split(/,/ , $o_crit);
-      if (($#o_warnL != 1) || ($#o_critL != 1)) 
+      if (($#o_warnL != 1) || ($#o_critL != 1))
 	{ print "2 warnings and critical !\n";print_usage(); exit $ERRORS{"UNKNOWN"}}
       for (my $i=0;$i<2;$i++) {
-	if ( isnnum($o_warnL[$i]) || isnnum($o_critL[$i])) 
+	if ( isnnum($o_warnL[$i]) || isnnum($o_critL[$i]))
 	    { print "Numeric value for warning or critical !\n";print_usage(); exit $ERRORS{"UNKNOWN"} }
 	if (($o_critL[$i]!= 0) && ($o_warnL[$i] > $o_critL[$i]))
 	   { print "warning <= critical ! \n";print_usage(); exit $ERRORS{"UNKNOWN"}}
@@ -239,7 +239,7 @@ sub check_options {
       $o_warnR=$o_warnL[0];$o_warnS=$o_warnL[1];
       $o_critR=$o_critL[0];$o_critS=$o_critL[1];
     }
-  
+
 }
 
 ########## MAIN #######
@@ -268,7 +268,7 @@ if ( defined($o_login) && defined($o_passwd)) {
       -authpassword	=> $o_passwd,
       -authprotocol	=> $o_authproto,
       -timeout          => $o_timeout
-    );  
+    );
   } else {
     verb("SNMPv3 AuthPriv login : $o_login, $o_authproto, $o_privproto");
     ($session, $error) = Net::SNMP->session(
@@ -319,7 +319,7 @@ if (defined ($o_cisco)) {
   $resultat = (Net::SNMP->VERSION < 4) ?
                  $session->get_table($cisco_mem_pool)
                  :$session->get_table(Baseoid => $cisco_mem_pool);
-  
+
   if (!defined($resultat)) {
     printf("ERROR: Description table : %s.\n", $session->error);
     $session->close;
@@ -329,14 +329,14 @@ if (defined ($o_cisco)) {
   my $nindex=0;
   foreach my $key ( keys %$resultat) {
      verb("OID : $key, Desc : $$resultat{$key}");
-     if ( $key =~ /$cisco_index/ ) { 
+     if ( $key =~ /$cisco_index/ ) {
 	@oid=split (/\./,$key);
 	$index[$nindex++] = pop(@oid);
      }
   }
-  
+
   # Check if at least 1 memory pool exists
-  if ($nindex == 0) { 
+  if ($nindex == 0) {
    printf("ERROR: No memory pools found");
    $session->close;
    exit $ERRORS{"UNKNOWN"};
@@ -353,7 +353,7 @@ if (defined ($o_cisco)) {
       $free += $$resultat{$cisco_free . "." . $_};
       $prct_free=round($$resultat{$cisco_used . "." . $_}*100/($$resultat{$cisco_free . "." . $_}+$$resultat{$cisco_used . "." . $_}) ,0);
       $c_output .= $$resultat{$cisco_index . "." . $_} . ":" . $prct_free . "%";
-      if (($o_crit!=0)&&($o_crit <= $prct_free)) { 
+      if (($o_crit!=0)&&($o_crit <= $prct_free)) {
 	$crit_s =1;
       } elsif (($o_warn!=0)&&($o_warn <= $prct_free)) {
 	$warn_s=1;
@@ -363,7 +363,7 @@ if (defined ($o_cisco)) {
       $crit_s =1;
     }
   }
-  my $total=$used+$free; 
+  my $total=$used+$free;
   $prct_free=round($used*100/($total),0);
   verb("Total used : $used, free: $free, output : $c_output");
   my $c_status="OK";
@@ -380,11 +380,11 @@ if (defined ($o_cisco)) {
   $c_output .= " ; ".$c_status;
   if (defined ($o_perf)) {
     $c_output .= " | ram_used=" . $used.";";
-    $c_output .= ($o_warn ==0)? ";" : round($o_warn * $total/100,0).";"; 
+    $c_output .= ($o_warn ==0)? ";" : round($o_warn * $total/100,0).";";
     $c_output .= ($o_crit ==0)? ";" : round($o_crit * $total/100,0).";";
     $c_output .= "0;" . $total ;
-  }             
-  $session->close; 
+  }
+  $session->close;
   print "$c_output \n";
   exit $ERRORS{$c_status};
 }
@@ -396,7 +396,7 @@ if (defined ($o_hp)) {
   $resultat = (Net::SNMP->VERSION < 4) ?
                  $session->get_table($hp_mem_pool)
                  :$session->get_table(Baseoid => $hp_mem_pool);
-  
+
   if (!defined($resultat)) {
     printf("ERROR: Description table : %s.\n", $session->error);
     $session->close;
@@ -406,14 +406,14 @@ if (defined ($o_hp)) {
   my $nindex=0;
   foreach my $key ( keys %$resultat) {
      verb("OID : $key, Desc : $$resultat{$key}");
-     if ( $key =~ /$hp_mem_index/ ) { 
+     if ( $key =~ /$hp_mem_index/ ) {
 	@oid=split (/\./,$key);
 	$index[$nindex++] = pop(@oid);
      }
   }
-  
+
   # Check if at least 1 memory slots exists
-  if ($nindex == 0) { 
+  if ($nindex == 0) {
    printf("ERROR: No memory slots found");
    $session->close;
    exit $ERRORS{"UNKNOWN"};
@@ -426,13 +426,13 @@ if (defined ($o_hp)) {
     $c_output .="," if defined ($c_output);
     $total += $$resultat{$hp_mem_total . "." . $_};
     $free += $$resultat{$hp_mem_free . "." . $_};
-    $c_output .= "Slot " . $$resultat{$hp_mem_index . "." . $_} . ":" 
- 		 .round( 
-		   100 - ($$resultat{$hp_mem_free . "." . $_} *100 / 
+    $c_output .= "Slot " . $$resultat{$hp_mem_index . "." . $_} . ":"
+ 		 .round(
+		   100 - ($$resultat{$hp_mem_free . "." . $_} *100 /
                         $$resultat{$hp_mem_total . "." . $_}) ,0)
 		 . "%";
   }
-  my $used = $total - $free; 
+  my $used = $total - $free;
   $prct_free=round($used*100/($total),0);
   verb("Used : $used, Free: $free, Output : $c_output");
   my $c_status="OK";
@@ -449,11 +449,11 @@ if (defined ($o_hp)) {
   $c_output .= " ; ".$c_status;
   if (defined ($o_perf)) {
     $c_output .= " | ram_used=" . $used.";";
-    $c_output .= ($o_warn ==0)? ";" : round($o_warn * $total/100,0).";"; 
+    $c_output .= ($o_warn ==0)? ";" : round($o_warn * $total/100,0).";";
     $c_output .= ($o_crit ==0)? ";" : round($o_crit * $total/100,0).";";
     $c_output .= "0;" . $total ;
-  }             
-  $session->close; 
+  }
+  $session->close;
   print "$c_output \n";
   exit $ERRORS{$c_status};
 }
@@ -465,16 +465,16 @@ if (defined ($o_netsnmp)) {
   $resultat = (Net::SNMP->VERSION < 4) ?
 		$session->get_request(@nets_oids)
 		:$session->get_request(-varbindlist => \@nets_oids);
-  
+
   if (!defined($resultat)) {
     printf("ERROR: netsnmp : %s.\n", $session->error);
     $session->close;
     exit $ERRORS{"UNKNOWN"};
   }
-  
+
   my ($realused,$swapused)=(undef,undef);
-  
-  $realused= defined($o_cache) ? 
+
+  $realused= defined($o_cache) ?
     ($$resultat{$nets_ram_total}-$$resultat{$nets_ram_free})/$$resultat{$nets_ram_total}
   :
     ($$resultat{$nets_ram_total}-($$resultat{$nets_ram_free}+$$resultat{$nets_ram_cache}))/$$resultat{$nets_ram_total};
@@ -482,15 +482,15 @@ if (defined ($o_netsnmp)) {
   if($$resultat{$nets_ram_total} == 0) { $realused = 0; }
 
   $swapused= ($$resultat{$nets_swap_total} == 0) ? 0 :
-		($$resultat{$nets_swap_total}-$$resultat{$nets_swap_free})/$$resultat{$nets_swap_total}; 
+		($$resultat{$nets_swap_total}-$$resultat{$nets_swap_free})/$$resultat{$nets_swap_total};
   $realused=round($realused*100,0);
   $swapused=round($swapused*100,0);
-  defined($o_cache) ? 
+  defined($o_cache) ?
     verb ("Ram : $$resultat{$nets_ram_free} / $$resultat{$nets_ram_total} : $realused")
     :
     verb ("Ram : $$resultat{$nets_ram_free} ($$resultat{$nets_ram_cache} cached) / $$resultat{$nets_ram_total} : $realused");
   verb ("Swap : $$resultat{$nets_swap_free} / $$resultat{$nets_swap_total} : $swapused");
-  
+
   my $n_status="OK";
   my $n_output="Ram : " . $realused . "%, Swap : " . $swapused . "% :";
   if ((($o_critR!=0)&&($o_critR <= $realused)) || (($o_critS!=0)&&($o_critS <= $swapused))) {
@@ -502,7 +502,7 @@ if (defined ($o_netsnmp)) {
       $n_status="WARNING";
     }
   }
-  $n_output .= " ; ".$n_status; 
+  $n_output .= " ; ".$n_status;
   if (defined ($o_perf)) {
     if (defined ($o_cache)) {
       $n_output .= " | ram_used=" . ($$resultat{$nets_ram_total}-$$resultat{$nets_ram_free}).";";
@@ -510,14 +510,14 @@ if (defined ($o_netsnmp)) {
     else {
       $n_output .= " | ram_used=" . ($$resultat{$nets_ram_total}-$$resultat{$nets_ram_free}-$$resultat{$nets_ram_cache}).";";
     }
-    $n_output .= ($o_warnR ==0)? ";" : round($o_warnR * $$resultat{$nets_ram_total}/100,0).";";  
-    $n_output .= ($o_critR ==0)? ";" : round($o_critR * $$resultat{$nets_ram_total}/100,0).";";  
+    $n_output .= ($o_warnR ==0)? ";" : round($o_warnR * $$resultat{$nets_ram_total}/100,0).";";
+    $n_output .= ($o_critR ==0)? ";" : round($o_critR * $$resultat{$nets_ram_total}/100,0).";";
     $n_output .= "0;" . $$resultat{$nets_ram_total}. " ";
     $n_output .= "swap_used=" . ($$resultat{$nets_swap_total}-$$resultat{$nets_swap_free}).";";
-    $n_output .= ($o_warnS ==0)? ";" : round($o_warnS * $$resultat{$nets_swap_total}/100,0).";";  
-    $n_output .= ($o_critS ==0)? ";" : round($o_critS * $$resultat{$nets_swap_total}/100,0).";"; 
+    $n_output .= ($o_warnS ==0)? ";" : round($o_warnS * $$resultat{$nets_swap_total}/100,0).";";
+    $n_output .= ($o_critS ==0)? ";" : round($o_critS * $$resultat{$nets_swap_total}/100,0).";";
     $n_output .= "0;" . $$resultat{$nets_swap_total};
-  }  
+  }
   $session->close;
   print "$n_output \n";
   exit $ERRORS{$n_status};
