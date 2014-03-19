@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w 
+#!/usr/bin/perl -w
 ############################## check_snmp_load #################
 # Version : 1.3.2
 # Date : Jan 16 2007
@@ -18,7 +18,7 @@ use Getopt::Long;
 
 # Nagios specific
 
-use lib "/usr/local/nagios/libexec";
+use lib "/var/lib/shinken/libexec";
 use utils qw(%ERRORS $TIMEOUT);
 #my $TIMEOUT = 15;
 #my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
@@ -30,7 +30,7 @@ my $base_proc = "1.3.6.1.2.1.25.3.3.1";   # oid for all proc info
 my $proc_id   = "1.3.6.1.2.1.25.3.3.1.1"; # list of processors (product ID)
 my $proc_load = "1.3.6.1.2.1.25.3.3.1.2"; # %time the proc was not idle over last minute
 
-# Linux load 
+# Linux load
 
 my $linload_table= "1.3.6.1.4.1.2021.10.1";   # net-snmp load table
 my $linload_name = "1.3.6.1.4.1.2021.10.1.2"; # text 'Load-1','Load-5', 'Load-15'
@@ -86,8 +86,8 @@ my $linkproof_cpu= "1.3.6.1.4.1.89.35.1.55.0"; # CPU RE (Routing Engine Tasks)
 my $hpux_load_1_min="1.3.6.1.4.1.11.2.3.1.1.3.0";
 my $hpux_load_5_min="1.3.6.1.4.1.11.2.3.1.1.4.0";
 my $hpux_load_15_min="1.3.6.1.4.1.11.2.3.1.1.5.0";
- 
-# valid values 
+
+# valid values
 my @valid_types = ("stand","netsc","netsl","as400","cisco","cata","nsc","fg","bc","nokia","hp","lp","hpux");
 # CPU OID array
 my %cpu_oid = ("netsc",$ns_cpu_idle,"as400",$as400_cpu,"bc",$bluecoat_cpu,"nokia",$nokia_cpu,"hp",$procurve_cpu,"lp",$linkproof_cpu,"fg",$fortigate_cpu);
@@ -103,7 +103,7 @@ my $o_help=	undef; 		# wan't some help ?
 my $o_verb=	undef;		# verbose mode
 my $o_version=	undef;		# print version
 # check type  : stand | netsc |  netsl | as400 | cisco | cata | nsc | fg | bc | nokia | hp | lp  | hpux
-my $o_check_type= "stand";	
+my $o_check_type= "stand";
 # End compatibility
 my $o_warn=	undef;		# warning level
 my @o_warnL=	undef;		# warning levels for Linux Load or Cisco CPU
@@ -140,7 +140,7 @@ sub help {
    print_usage();
    print <<EOT;
 -v, --verbose
-   print extra debugging information 
+   print extra debugging information
 -h, --help
    print this help message
 -H, --hostname=HOST
@@ -150,25 +150,25 @@ sub help {
 -2, --v2c
    Use snmp v2c
 -l, --login=LOGIN ; -x, --passwd=PASSWD
-   Login and auth password for snmpv3 authentication 
-   If no priv password exists, implies AuthNoPriv 
+   Login and auth password for snmpv3 authentication
+   If no priv password exists, implies AuthNoPriv
 -X, --privpass=PASSWD
    Priv password for snmpv3 (AuthPriv protocol)
 -L, --protocols=<authproto>,<privproto>
    <authproto> : Authentication protocol (md5|sha : default md5)
-   <privproto> : Priv protocole (des|aes : default des) 
+   <privproto> : Priv protocole (des|aes : default des)
 -P, --port=PORT
    SNMP port (Default 161)
 -w, --warn=INTEGER | INT,INT,INT
    1 value check : warning level for cpu in percent (on one minute)
-   3 value check : comma separated level for load or cpu for 1min, 5min, 15min 
+   3 value check : comma separated level for load or cpu for 1min, 5min, 15min
 -c, --crit=INTEGER | INT,INT,INT
    critical level for cpu in percent (on one minute)
    1 value check : critical level for cpu in percent (on one minute)
-   3 value check : comma separated level for load or cpu for 1min, 5min, 15min 
+   3 value check : comma separated level for load or cpu for 1min, 5min, 15min
 -T, --type=stand|netsl|netsc|as400|cisco|bc|nokia|hp|lp
-	CPU check : 
-		stand : standard MIBII (works with Windows), 
+	CPU check :
+		stand : standard MIBII (works with Windows),
 		        can handle multiple CPU.
 		netsl : linux load provided by Net SNMP (1,5 & 15 minutes values)
 		netsc : cpu usage given by net-snmp (100-idle)
@@ -205,7 +205,7 @@ sub check_options {
 	'l:s'	=> \$o_login,		'login:s'	=> \$o_login,
 	'x:s'	=> \$o_passwd,		'passwd:s'	=> \$o_passwd,
 	'X:s'	=> \$o_privpass,		'privpass:s'	=> \$o_privpass,
-	'L:s'	=> \$v3protocols,		'protocols:s'	=> \$v3protocols,   
+	'L:s'	=> \$v3protocols,		'protocols:s'	=> \$v3protocols,
         't:i'   => \$o_timeout,       	'timeout:i'     => \$o_timeout,
 	'V'	=> \$o_version,		'version'	=> \$o_version,
 	'2'     => \$o_version2,        'v2c'           => \$o_version2,
@@ -215,17 +215,17 @@ sub check_options {
 	'T:s'	=> \$o_check_type,	'type:s'	=> \$o_check_type
 	);
     # check the -T option
-    my $T_option_valid=0; 
+    my $T_option_valid=0;
     foreach (@valid_types) { if ($_ eq $o_check_type) {$T_option_valid=1} };
-    if ( $T_option_valid == 0 ) 
+    if ( $T_option_valid == 0 )
        {print "Invalid check type (-T)!\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
     # Basic checks
-	if (defined($o_timeout) && (isnnum($o_timeout) || ($o_timeout < 2) || ($o_timeout > 60))) 
+	if (defined($o_timeout) && (isnnum($o_timeout) || ($o_timeout < 2) || ($o_timeout > 60)))
 	  { print "Timeout must be >1 and <60 !\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
 	if (!defined($o_timeout)) {$o_timeout=5;}
     if (defined ($o_help) ) { help(); exit $ERRORS{"UNKNOWN"}};
     if (defined($o_version)) { p_version(); exit $ERRORS{"UNKNOWN"}};
-    if ( ! defined($o_host) ) # check host and filter 
+    if ( ! defined($o_host) ) # check host and filter
 	{ print_usage(); exit $ERRORS{"UNKNOWN"}}
     # check snmp information
     if ( !defined($o_community) && (!defined($o_login) || !defined($o_passwd)) )
@@ -244,28 +244,28 @@ sub check_options {
     if (!defined($o_warn) || !defined($o_crit))
  	{ print "put warning and critical info!\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
     # Get rid of % sign
-    $o_warn =~ s/\%//g; 
+    $o_warn =~ s/\%//g;
     $o_crit =~ s/\%//g;
     # Check for multiple warning and crit in case of -L
-	if (($o_check_type eq "netsl") || ($o_check_type eq "cisco") || ($o_check_type eq "cata") || 
+	if (($o_check_type eq "netsl") || ($o_check_type eq "cisco") || ($o_check_type eq "cata") ||
 		($o_check_type eq "nsc") || ($o_check_type eq "hpux")) {
 		@o_warnL=split(/,/ , $o_warn);
 		@o_critL=split(/,/ , $o_crit);
-		if (($#o_warnL != 2) || ($#o_critL != 2)) 
+		if (($#o_warnL != 2) || ($#o_critL != 2))
 			{ print "3 warnings and critical !\n";print_usage(); exit $ERRORS{"UNKNOWN"}}
 		for (my $i=0;$i<3;$i++) {
-			if ( isnnum($o_warnL[$i]) || isnnum($o_critL[$i])) 
+			if ( isnnum($o_warnL[$i]) || isnnum($o_critL[$i]))
 				{ print "Numeric value for warning or critical !\n";print_usage(); exit $ERRORS{"UNKNOWN"}}
-			if ($o_warnL[$i] > $o_critL[$i]) 
+			if ($o_warnL[$i] > $o_critL[$i])
 				{ print "warning <= critical ! \n";print_usage(); exit $ERRORS{"UNKNOWN"}}
 		}
 	} else {
 		if (($o_warn =~ /,/) || ($o_crit =~ /,/)) {
              { print "Multiple warning/critical levels not available for this check\n";print_usage(); exit $ERRORS{"UNKNOWN"}}
 		}
-        if ( isnnum($o_warn) || isnnum($o_crit) ) 
+        if ( isnnum($o_warn) || isnnum($o_crit) )
 			{ print "Numeric value for warning or critical !\n";print_usage(); exit $ERRORS{"UNKNOWN"}}
-		if ($o_warn > $o_crit) 
+		if ($o_warn > $o_crit)
             { print "warning <= critical ! \n";print_usage(); exit $ERRORS{"UNKNOWN"}}
 	}
 }
@@ -302,7 +302,7 @@ if ( defined($o_login) && defined($o_passwd)) {
       -authpassword	=> $o_passwd,
       -authprotocol	=> $o_authproto,
       -timeout          => $o_timeout
-    );  
+    );
   } else {
     verb("SNMPv3 AuthPriv login : $o_login, $o_authproto, $o_privproto");
     ($session, $error) = Net::SNMP->session(
@@ -350,10 +350,10 @@ if ($o_check_type eq "netsl") {
 
 verb("Checking linux load");
 # Get load table
-my $resultat = (Net::SNMP->VERSION < 4) ? 
+my $resultat = (Net::SNMP->VERSION < 4) ?
 		  $session->get_table($linload_table)
-		: $session->get_table(Baseoid => $linload_table); 
-		
+		: $session->get_table(Baseoid => $linload_table);
+
 if (!defined($resultat)) {
    printf("ERROR: Description table : %s.\n", $session->error);
    $session->close;
@@ -367,7 +367,7 @@ my @oid=undef;
 my $exist=0;
 foreach my $key ( keys %$resultat) {
    verb("OID : $key, Desc : $$resultat{$key}");
-   if ( $key =~ /$linload_name/ ) { 
+   if ( $key =~ /$linload_name/ ) {
       @oid=split (/\./,$key);
       $iload[0]= pop(@oid) if ($$resultat{$key} eq "Load-1");
       $iload[1]= pop(@oid) if ($$resultat{$key} eq "Load-5");
@@ -392,15 +392,15 @@ for (my $i=0;$i<3;$i++) {
    $exit_val=$ERRORS{"CRITICAL"};
   }
   if ( $load[$i] > $o_warnL[$i] ) {
-     # output warn error only if no critical was found 
+     # output warn error only if no critical was found
      if ($exit_val eq $ERRORS{"OK"}) {
-       print " $load[$i] > $o_warnL[$i] : WARNING"; 
+       print " $load[$i] > $o_warnL[$i] : WARNING";
        $exit_val=$ERRORS{"WARNING"};
      }
   }
 }
 print " OK" if ($exit_val eq $ERRORS{"OK"});
-if (defined($o_perf)) { 
+if (defined($o_perf)) {
    print " | load_1_min=$load[0];$o_warnL[0];$o_critL[0] ";
    print "load_5_min=$load[1];$o_warnL[1];$o_critL[1] ";
    print "load_15_min=$load[2];$o_warnL[2];$o_critL[2]\n";
@@ -448,7 +448,7 @@ for (my $i=0;$i<3;$i++) {
   if ( $load[$i] > $o_warnL[$i] ) {
      # output warn error only if no critical was found
      if ($exit_val eq $ERRORS{"OK"}) {
-       print " $load[$i] > $o_warnL[$i] : WARNING"; 
+       print " $load[$i] > $o_warnL[$i] : WARNING";
        $exit_val=$ERRORS{"WARNING"};
      }
   }
@@ -503,7 +503,7 @@ for (my $i=0;$i<3;$i++) {
   if ( $load[$i] > $o_warnL[$i] ) {
      # output warn error only if no critical was found
      if ($exit_val eq $ERRORS{"OK"}) {
-       print " $load[$i] > $o_warnL[$i] : WARNING"; 
+       print " $load[$i] > $o_warnL[$i] : WARNING";
        $exit_val=$ERRORS{"WARNING"};
      }
   }
@@ -558,7 +558,7 @@ for (my $i=0;$i<3;$i++) {
   if ( $load[$i] > $o_warnL[$i] ) {
      # output warn error only if no critical was found
      if ($exit_val eq $ERRORS{"OK"}) {
-       print " $load[$i] > $o_warnL[$i] : WARNING"; 
+       print " $load[$i] > $o_warnL[$i] : WARNING";
        $exit_val=$ERRORS{"WARNING"};
      }
   }
@@ -579,9 +579,9 @@ exit $exit_val;
 if ( $o_check_type =~ /netsc|as400|bc|nokia|^hp$|lp|fg/ ) {
 
 # Get load table
-my @oidlist = $cpu_oid{$o_check_type}; 
+my @oidlist = $cpu_oid{$o_check_type};
 verb("Checking OID : @oidlist");
-my $resultat = (Net::SNMP->VERSION < 4) ? 
+my $resultat = (Net::SNMP->VERSION < 4) ?
 	  $session->get_request(@oidlist)
 	: $session->get_request(-varbindlist => \@oidlist);
 if (!defined($resultat)) {
@@ -601,7 +601,7 @@ verb("OID returned $load");
 # for AS400, divide by 100
 if ($o_check_type eq "as400") {$load /= 100; };
 # for Net-snmp : oid returned idle time so load = 100-idle.
-if ($o_check_type eq "netsc") {$load = 100 - $load; }; 
+if ($o_check_type eq "netsc") {$load = 100 - $load; };
 
 printf("CPU used %.1f%% (",$load);
 
@@ -663,7 +663,7 @@ for (my $i=0;$i<3;$i++) {
   if ( $load[$i] > $o_warnL[$i] ) {
      # output warn error only if no critical was found
      if ($exit_val eq $ERRORS{"OK"}) {
-       print " $load[$i] > $o_warnL[$i] : WARNING"; 
+       print " $load[$i] > $o_warnL[$i] : WARNING";
        $exit_val=$ERRORS{"WARNING"};
      }
   }
