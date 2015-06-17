@@ -25,10 +25,16 @@
             "description": "Critical level for the CPU usage"
         },
         "_MEMORY_WARN": {"type":"doublepercent",
-            "description": "Physical memory and swap warning level"
+            "description": "Physical memory warning level"
         },
         "_MEMORY_CRIT": {"type":"doublepercent",
-            "description": "Physical memory and swap critical level"
+            "description": "Physical memory critical level"
+        },
+        "_SWAP_WARN": {"type":"doublepercent",
+            "description": "Swap memory warning level"
+        },
+        "_SWAP_CRIT": {"type":"doublepercent",
+            "description": "Swap memory critical level"
         },
         "_NET_IFACES":  {"type":"regex pattern",
             "description": "Pattern that will match ethernet device name. Default: en\d+"
