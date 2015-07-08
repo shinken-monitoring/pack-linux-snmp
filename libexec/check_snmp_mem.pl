@@ -59,7 +59,8 @@ my $STR = join(" ", @ARGV);
 sub do_snmp {
 	my ($OID) = @_;
 
-	my $cmd = $snmpget . " " . $STR . " " . $OID;
+	# Option "-OU" to remove the "kB" unit.
+	my $cmd = $snmpget . " -OU " . $STR . " " . $OID;
 
 	chomp(my $out = `$cmd 2> /dev/null`);
 
@@ -102,7 +103,7 @@ if ($swap) {
 
 	$realPercent = (($swapTotal - $swapFree) / $swapTotal) * 100;
 
-	$status_str = "Free => $swapFree Kb, Total => $swapTotal Kb|swap_free=$swapFree swap_total=$swapTotal";
+	$status_str = "Free => $swapFree kB, Total => $swapTotal kB|swap_free=$swapFree swap_total=$swapTotal";
 
 } else {
 
@@ -128,7 +129,7 @@ if ($swap) {
 
 	$realPercent = (($memRealUsed - $memRealBuffers - $memRealCached )/ $memRealTotal) * 100;
 
-	$status_str = "Free => $memRealFree Kb, Total => $memRealTotal Kb, Cached => $memRealCached Kb, Buffered => $memRealBuffers Kb|ram_free=$memRealFree ram_total=$memRealTotal ram_cached=$memRealCached ram_buffered=$memRealBuffers";
+	$status_str = "Free => $memRealFree kB, Total => $memRealTotal kB, Cached => $memRealCached kB, Buffered => $memRealBuffers kB|ram_free=$memRealFree ram_total=$memRealTotal ram_cached=$memRealCached ram_buffered=$memRealBuffers";
 
 }
 
