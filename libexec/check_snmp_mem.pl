@@ -91,18 +91,21 @@ if ($swap) {
 	my $swapFreeOID = '.1.3.6.1.4.1.2021.4.4.0';
 	my $swapTotalOID = '.1.3.6.1.4.1.2021.4.3.0';
 
-	my $swapTotal = do_snmp($swapTotalOID);
+    # Fix: get rid of last 3 character that was " kB" as they aren't relevant here.
+	my $swapTotal = substr(do_snmp($swapTotalOID), 0, -3);
 
 	if (0 == $swapTotal) {
 		print "SNMP problem - total swap is zero, is swap enabled on this host?\n";
 		exit STATUS_UNKNOWN;
 	}
 
-	my $swapFree = do_snmp($swapFreeOID);
+    # Fix: get rid of last 3 character that was " kB" as they aren't relevant here.
+	my $swapFree = substr(do_snmp($swapFreeOID), 0, -3);
 
 	$realPercent = (($swapTotal - $swapFree) / $swapTotal) * 100;
 
-	$status_str = "Free => $swapFree Kb, Total => $swapTotal Kb|swap_free=$swapFree swap_total=$swapTotal";
+    # Enh/Fix: compliance with nagios plugin dev guidelines
+    $status_str = "Free => $swapFree Kb, Total => $swapTotal Kb | swap_free=$swapFree;$warn;$crit;;$swapTotal swap_total=$swapTotal;;;;";
 
 } else {
 
@@ -113,22 +116,25 @@ if ($swap) {
 	my $memRealCachedOID = '.1.3.6.1.4.1.2021.4.15.0';
 	my $memRealBuffersOID = '.1.3.6.1.4.1.2021.4.14.0';
 
-	my $memRealTotal = do_snmp($memRealTotalOID);
+    # Fix: get rid of last 3 character that was " kB" as they aren't relevant here.
+	my $memRealTotal = substr(do_snmp($memRealTotalOID), 0, -3);
 
 	if (0 == $memRealTotal) {
 		print "SNMP problem - no value returned\n";
 		exit STATUS_UNKNOWN;
 	}
 
-	my $memRealFree = do_snmp($memRealFreeOID);
-	my $memRealCached = do_snmp($memRealCachedOID);
-	my $memRealBuffers = do_snmp($memRealBuffersOID);
+    # Fix: get rid of last 3 character that was " kB" as they aren't relevant here.
+	my $memRealFree = substr(do_snmp($memRealFreeOID), 0, -3);
+	my $memRealCached = substr(do_snmp($memRealCachedOID), 0, -3);
+	my $memRealBuffers = substr(do_snmp($memRealBuffersOID), 0, -3);
 
 	my $memRealUsed = $memRealTotal - $memRealFree;
 
 	$realPercent = (($memRealUsed - $memRealBuffers - $memRealCached )/ $memRealTotal) * 100;
 
-	$status_str = "Free => $memRealFree Kb, Total => $memRealTotal Kb, Cached => $memRealCached Kb, Buffered => $memRealBuffers Kb|ram_free=$memRealFree ram_total=$memRealTotal ram_cached=$memRealCached ram_buffered=$memRealBuffers";
+    # Enh/Fix: compliance with nagios plugin dev guidelines
+    $status_str = "Free => $memRealFree Kb, Total => $memRealTotal Kb, Cached => $memRealCached Kb, Buffered => $memRealBuffers Kb | ram_free=$memRealFree;$warn;$crit;;$memRealTotal ram_total=$memRealTotal;;;; ram_cached=$memRealCached;;;;$memRealTotal ram_buffered=$memRealBuffers;;;;$memRealTotal";
 
 }
 
