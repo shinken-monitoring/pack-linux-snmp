@@ -17,6 +17,13 @@ use Getopt::Long;
 
 # Nagios specific
 
+if (-d "/usr/lib64/nagios/plugins"){
+  use lib "/usr/lib64/nagios/plugins"
+}
+else{
+  use lib "/usr/lib/nagios/plugins"
+}
+
 use lib "/var/lib/shinken/libexec";
 use utils qw(%ERRORS $TIMEOUT);
 #my $TIMEOUT = 15;
