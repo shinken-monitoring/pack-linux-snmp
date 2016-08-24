@@ -1,7 +1,7 @@
 {
     "name": "linux-snmp",
     "types": ["pack"],
-    "version": "1.6",
+    "version": "1.7",
     "homepage": "https://github.com/shinken-monitoring/pack-linux-snmp",
     "author": "Jean Gabès",
     "description": "Linux checks based on SNMP",
