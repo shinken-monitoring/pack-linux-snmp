@@ -1,33 +1,23 @@
 #!/usr/bin/perl -w
 ############################## check_snmp_storage ##############
-# Version : 1.3.2
-# Date :  March 12 2007
+# Version : 1.3.3
+# Date :  Jun 1 2007
 # Author  : Patrick Proy ( patrick at proy.org)
 # Help : http://nagios.manubulon.com
 # Licence : GPL - http://www.fsf.org/licenses/gpl.txt
-# TODO :
-# Contribs : Dimo Velev, Makina Corpus
+# TODO : 
+# Contribs : Dimo Velev, Makina Corpus, A. Greiner-B\ufffdr
 #################################################################
 #
 # help : ./check_snmp_storage -h
-
+ 
 use strict;
 use Net::SNMP;
 use Getopt::Long;
 
-# Nagios specific
-
-if (-d "/usr/lib64/nagios/plugins"){
-  use lib "/usr/lib64/nagios/plugins"
-}
-else{
-  use lib "/usr/lib/nagios/plugins"
-}
-
-use lib "/var/lib/shinken/libexec";
-use utils qw(%ERRORS $TIMEOUT);
-#my $TIMEOUT = 15;
-#my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
+# Icinga specific
+my $TIMEOUT = 15;
+my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 
 # SNMP Datas
 my $storage_table= '1.3.6.1.2.1.25.2.3.1';
@@ -64,18 +54,19 @@ $hrStorage{"1.3.6.1.2.1.25.2.1.10"} = 'NetworkDisk';
 # Globals
 
 my $Name='check_snmp_storage';
-my $Version='1.3.2';
+my $Version='1.3.3';
 
-my $o_host = 	undef; 		# hostname
-my $o_community = undef; 	# community
+my $o_host = 	undef; 		# hostname 
+my $o_community = undef; 	# community 
 my $o_port = 	161; 		# port
+my $o_domain=   'udp/ipv4';	# Default to UDP over IPv4
 my $o_version2	= undef;	#use snmp v2c
-my $o_descr = 	undef; 		# description filter
+my $o_descr = 	undef; 		# description filter 
 my $o_storagetype = undef;    # parse storage type also
-my $o_warn = 	undef; 		# warning limit
+my $o_warn = 	undef; 		# warning limit 
 my $o_crit=	undef; 		# critical limit
 my $o_help=	undef; 		# wan't some help ?
-my $o_type=	undef;		# pl, pu, mbl, mbu
+my $o_type=	undef;		# pl, pu, mbl, mbu 
 my @o_typeok=   ("pu","pl","bu","bl"); # valid values for o_type
 my $o_verb=	undef;		# verbose mode
 my $o_version=  undef;          # print version
@@ -87,6 +78,8 @@ my $o_timeout=  5;            	# Default 5s Timeout
 my $o_perf=	undef;		# Output performance data
 my $o_short=	undef;	# Short output parameters
 my @o_shortL=	undef;		# output type,where,cut
+my $o_reserve=	0;              # % reserved blocks (A. Greiner-B\ufffdr patch)
+my $o_giga=		undef;	# output and levels in gigabytes instead of megabytes
 # SNMPv3 specific
 my $o_login=	undef;		# Login for snmpv3
 my $o_passwd=	undef;		# Pass for snmpv3
@@ -94,6 +87,7 @@ my $v3protocols=undef;	# V3 protocol list.
 my $o_authproto='md5';		# Auth protocol
 my $o_privproto='des';		# Priv protocol
 my $o_privpass= undef;		# priv password
+my $UOM_float= 4;		# decimal places
 # SNMP Message size parameter (Makina Corpus contrib)
 my $o_octetlength=undef;
 
@@ -102,7 +96,7 @@ my $o_octetlength=undef;
 sub p_version { print "$Name version : $Version\n"; }
 
 sub print_usage {
-    print "Usage: $Name [-v] -H <host> -C <snmp_community> [-2] | (-l login -x passwd [-X pass -L <authp>,<privp>]) [-p <port>] -m <name in desc_oid> [-q storagetype] -w <warn_level> -c <crit_level> [-t <timeout>] [-T pl|pu|bl|bu ] [-r] [-s] [-i] [-e] [-S 0|1[,1,<car>]] [-o <octet_length>]\n";
+    print "Usage: $Name [-v] -H <host> -C <snmp_community> [-2] | (-l login -x passwd [-X pass -L <authp>,<privp>]) [-p <port>] [-P <protocol>] -m <name in desc_oid> [-q storagetype] -w <warn_level> -c <crit_level> [-t <timeout>] [-T pl|pu|bl|bu ] [-r -s -i -G] [-e] [-S 0|1[,1,<car>]] [-o <octet_length>] [-R <% reserved>]\n";
 }
 
 sub round ($$) {
@@ -117,8 +111,10 @@ sub is_pattern_valid { # Test for things like "<I\s*[^>" or "+5-i"
 
 # Get the alarm signal (just in case snmp timout screws up)
 $SIG{'ALRM'} = sub {
-     print ("ERROR: General time-out (Alarm signal)\n");
-     exit $ERRORS{"UNKNOWN"};
+#     print ("ERROR: General time-out (Alarm signal)\n");
+#     exit $ERRORS{"UNKNOWN"};
+     print ("Waiting for info\n");
+     exit $ERRORS{"OK"};
 };
 
 sub isnnum { # Return true if arg is not a number
@@ -129,7 +125,7 @@ sub isnnum { # Return true if arg is not a number
 
 sub help {
    print "\nSNMP Disk Monitor for Nagios version ",$Version,"\n";
-   print "(c)2004-2006 Patrick Proy\n\n";
+   print "(c)2004-2007 Patrick Proy\n\n";
    print_usage();
    print <<EOT;
 By default, plugin will monitor %used on drives :
@@ -142,20 +138,26 @@ warn if %used > warn and critical if %used > crit
    name or IP address of host to check
 -C, --community=COMMUNITY NAME
    community name for the host's SNMP agent (implies SNMP v1)
-2, --v2c
+-2, --v2c
    Use snmp v2c
 -l, --login=LOGIN ; -x, --passwd=PASSWD
-   Login and auth password for snmpv3 authentication
-   If no priv password exists, implies AuthNoPriv
+   Login and auth password for snmpv3 authentication 
+   If no priv password exists, implies AuthNoPriv 
 -X, --privpass=PASSWD
    Priv password for snmpv3 (AuthPriv protocol)
 -L, --protocols=<authproto>,<privproto>
    <authproto> : Authentication protocol (md5|sha : default md5)
-   <privproto> : Priv protocole (des|aes : default des)
+   <privproto> : Priv protocole (des|aes : default des) 
 -x, --passwd=PASSWD
    Password for snmpv3 authentication
 -p, --port=PORT
    SNMP port (Default 161)
+-P, --protocol=PROTOCOL
+   Network protocol to be used
+   ['udp/ipv4'] : UDP over IPv4
+    'udp/ipv6'  : UDP over IPv6
+    'tcp/ipv4'  : TCP over IPv4
+    'tcp/ipv6'  : TCP over IPv6
 -m, --name=NAME
    Name in description OID (can be mounpoints '/home' or 'Swap Space'...)
    This is treated as a regexp : -m /var will match /var , /var/log, /opt/var ...
@@ -182,39 +184,44 @@ warn if %used > warn and critical if %used > crit
    bu : calculate MegaBytes used
 -w, --warn=INTEGER
    percent / MB of disk used to generate WARNING state
-   you can add the % sign
+   you can add the % sign 
 -c, --critical=INTEGER
    percent / MB of disk used to generate CRITICAL state
-   you can add the % sign
--f, --perfparse
-   Perfparse compatible output
+   you can add the % sign 
+-R, --reserved=INTEGER
+   % reserved blocks for superuser
+   For ext2/3 filesystems, it is 5% by default
+-G, --gigabyte
+   output, warning & critical levels in gigabytes
+-f, --perfparse, --perfdata
+   Performance data output
 -S, --short=<type>[,<where>,<cut>]
    <type>: Make the output shorter :
      0 : only print the global result except the disk in warning or critical
          ex: "< 80% : OK"
-     1 : Don't print all info for every disk
+     1 : Don't print all info for every disk 
          ex : "/ : 66 %used  (<  80) : OK"
    <where>: (optional) if = 1, put the OK/WARN/CRIT at the beginning
    <cut>: take the <n> first caracters or <n> last if n<0
 -o, --octetlength=INTEGER
   max-size of the SNMP message, usefull in case of Too Long responses.
   Be carefull with network filters. Range 484 - 65535, default are
-  usually 1472,1452,1460 or 1440.
+  usually 1472,1452,1460 or 1440.   
 -t, --timeout=INTEGER
    timeout for SNMP in seconds (Default: 5)
 -V, --version
    prints version number
-Note :
+Note : 
   with T=pu or T=bu : OK < warn < crit
   with T=pl ot T=bl : crit < warn < OK
-
+  
   If multiple storage are selected, the worse condition will be returned
   i.e if one disk is critical, the return is critical
-
-  example :
-  Browse storage list : <script> -C <community> -H <host> -m <anything> -w 1 -c 2 -v
-  the -m option allows regexp in perl format :
-  Test drive C,F,G,H,I on Windows 	: -m ^[CFGHI]:
+ 
+  example : 
+  Browse storage list : <script> -C <community> -H <host> -m <anything> -w 1 -c 2 -v 
+  the -m option allows regexp in perl format : 
+  Test drive C,F,G,H,I on Windows 	: -m ^[CFGHI]:    
   Test all mounts containing /var      	: -m /var
   Test all mounts under /var      	: -m ^/var
   Test only /var                 	: -m /var -r
@@ -233,12 +240,13 @@ sub check_options {
         'h'     => \$o_help,    	'help'        	=> \$o_help,
         'H:s'   => \$o_host,		'hostname:s'	=> \$o_host,
         'p:i'   => \$o_port,   		'port:i'	=> \$o_port,
+	'P:s'	=> \$o_domain,		'protocol:s'	=> \$o_domain,
         'C:s'   => \$o_community,	'community:s'	=> \$o_community,
 	'2'     => \$o_version2,        'v2c'           => \$o_version2,
 	'l:s'	=> \$o_login,		'login:s'	=> \$o_login,
 	'x:s'	=> \$o_passwd,		'passwd:s'	=> \$o_passwd,
 	'X:s'	=> \$o_privpass,		'privpass:s'	=> \$o_privpass,
-	'L:s'	=> \$v3protocols,		'protocols:s'	=> \$v3protocols,
+	'L:s'	=> \$v3protocols,		'protocols:s'	=> \$v3protocols,   	
         'c:s'   => \$o_crit,    	'critical:s'	=> \$o_crit,
         'w:s'   => \$o_warn,    	'warn:s'	=> \$o_warn,
 	't:i'   => \$o_timeout,       	'timeout:i'     => \$o_timeout,
@@ -252,13 +260,15 @@ sub check_options {
 		'q:s'  	=> \$o_storagetype,	'storagetype:s'=> \$o_storagetype,
 	'S:s'   => \$o_short,         	'short:s'       => \$o_short,
 	'o:i'   => \$o_octetlength,    	'octetlength:i' => \$o_octetlength,
-	'f'	=> \$o_perf,		'perfparse'	=> \$o_perf
+	'f'	=> \$o_perf,		'perfparse'	=> \$o_perf, 'perfdata' => \$o_perf,
+	'R:i'	=> \$o_reserve,	        'reserved:i'	=> \$o_reserve,
+	'G'	=> \$o_giga,	        'gigabyte'	=> \$o_giga
     );
     if (defined($o_help) ) { help(); exit $ERRORS{"UNKNOWN"}};
     if (defined($o_version) ) { p_version(); exit $ERRORS{"UNKNOWN"}};
     # check mount point regexp
-    if (!is_pattern_valid($o_descr))
-	{ print "Bad pattern for mount point !\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
+    if (!is_pattern_valid($o_descr)) 
+	{ print "Bad pattern for mount point !\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}    
     # check snmp information
     if ( !defined($o_community) && (!defined($o_login) || !defined($o_passwd)) )
 	  { print "Put snmp login info!\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
@@ -274,10 +284,13 @@ sub check_options {
 	}
     # Check types
     if ( !defined($o_type) ) { $o_type="pu" ;}
-    if ( ! grep( /^$o_type$/ ,@o_typeok) ) { print_usage(); exit $ERRORS{"UNKNOWN"}};
+    if ( ! grep( /^$o_type$/ ,@o_typeok) ) { print_usage(); exit $ERRORS{"UNKNOWN"}};   
     # Check compulsory attributes
-    if ( ! defined($o_descr) ||  ! defined($o_host) || !defined($o_warn) ||
+    if ( ! defined($o_descr) ||  ! defined($o_host) || !defined($o_warn) || 
 	!defined($o_crit)) { print_usage(); exit $ERRORS{"UNKNOWN"}};
+    # Get rid of % sign if any
+    $o_warn =~ s/\%//; 
+    $o_crit =~ s/\%//;
     # Check for positive numbers
     if (($o_warn < 0) || ($o_crit < 0)) { print " warn and critical > 0 \n";print_usage(); exit $ERRORS{"UNKNOWN"}};
     # check if warn or crit  in % and MB is tested
@@ -285,9 +298,6 @@ sub check_options {
 	print "warning or critical cannot be in % when MB are tested\n";
 	print_usage(); exit $ERRORS{"UNKNOWN"};
     }
-    # Get rid of % sign
-    $o_warn =~ s/\%//;
-    $o_crit =~ s/\%//;
     # Check warning and critical values
     if ( ( $o_type eq 'pu' ) || ( $o_type eq 'bu' )) {
 	if ($o_warn >= $o_crit) { print " warn < crit if type=",$o_type,"\n";print_usage(); exit $ERRORS{"UNKNOWN"}};
@@ -295,10 +305,10 @@ sub check_options {
     if ( ( $o_type eq 'pl' ) || ( $o_type eq 'bl' )) {
 	if ($o_warn <= $o_crit) { print " warn > crit if type=",$o_type,"\n";print_usage(); exit $ERRORS{"UNKNOWN"}};
     }
-    if ( ($o_warn < 0 ) || ($o_crit < 0 )) { print "warn and crit must be > 0\n";print_usage(); exit $ERRORS{"UNKNOWN"}};
+    if ( ($o_warn < 0 ) || ($o_crit < 0 )) { print "warn and crit must be > 0\n";print_usage(); exit $ERRORS{"UNKNOWN"}}; 
     if ( ( $o_type eq 'pl' ) || ( $o_type eq 'pu' )) {
-        if ( ($o_warn > 100 ) || ($o_crit > 100 )) { print "percent must be < 100\n";print_usage(); exit $ERRORS{"UNKNOWN"}};
-    }
+        if ( ($o_warn > 100 ) || ($o_crit > 100 )) { print "percent must be < 100\n";print_usage(); exit $ERRORS{"UNKNOWN"}}; 
+    } 
 	# Check short values
 	if ( defined ($o_short)) {
  	  @o_shortL=split(/,/,$o_short);
@@ -312,6 +322,10 @@ sub check_options {
     #### octet length checks
     if (defined ($o_octetlength) && (isnnum($o_octetlength) || $o_octetlength > 65535 || $o_octetlength < 484 )) {
 		print "octet lenght must be < 65535 and > 484\n";print_usage(); exit $ERRORS{"UNKNOWN"};
+    }	
+    #### reserved blocks checks (A. Greiner-B\ufffdr patch).
+    if (defined ($o_reserve) && (isnnum($o_reserve) || $o_reserve > 99 || $o_reserve < 0 )) {
+		print "reserved blocks must be < 100 and >= 0\n";print_usage(); exit $ERRORS{"UNKNOWN"};
     }
 }
 
@@ -342,8 +356,10 @@ if ( defined($o_login) && defined($o_passwd)) {
       -authpassword	=> $o_passwd,
       -authprotocol	=> $o_authproto,
       -port      	=> $o_port,
-      -timeout          => $o_timeout
-    );
+      -retries       => 10,
+      -timeout          => $o_timeout,
+      -domain           => $o_domain
+    );  
   } else {
     verb("SNMPv3 AuthPriv login : $o_login, $o_authproto, $o_privproto");
     ($session, $error) = Net::SNMP->session(
@@ -355,7 +371,9 @@ if ( defined($o_login) && defined($o_passwd)) {
       -privpassword	=> $o_privpass,
 	  -privprotocol => $o_privproto,
       -port      	=> $o_port,
-      -timeout          => $o_timeout
+      -retries       => 10,
+      -timeout          => $o_timeout,
+      -domain           => $o_domain
     );
   }
 } else {
@@ -367,7 +385,9 @@ if ( defined($o_login) && defined($o_passwd)) {
 		 -version   => 2,
 		 -community => $o_community,
 		 -port      => $o_port,
-		 -timeout   => $o_timeout
+  		 -retries       => 10,
+		 -timeout   => $o_timeout,
+		 -domain    => $o_domain
 		);
   	} else {
 	  # SNMPV1 login
@@ -376,7 +396,9 @@ if ( defined($o_login) && defined($o_passwd)) {
 		-hostname  => $o_host,
 		-community => $o_community,
 		-port      => $o_port,
-		-timeout   => $o_timeout
+                -retries       => 10,
+		-timeout   => $o_timeout,
+		-domain    => $o_domain
 	  );
 	}
 }
@@ -405,13 +427,13 @@ my $stype=undef;
 # Get rid of UTF8 translation in case of accentuated caracters (thanks to Dimo Velev).
 $session->translate(Net::SNMP->TRANSLATE_NONE);
 if (defined ($o_index)){
-  if (Net::SNMP->VERSION lt 4) {
+  if (version->parse(Net::SNMP->VERSION) < 4) {
     $resultat = $session->get_table($index_table);
   } else {
 	$resultat = $session->get_table(Baseoid => $index_table);
   }
 } else {
-  if (Net::SNMP->VERSION lt 4) {
+  if (version->parse(Net::SNMP->VERSION) < 4) {
     $resultat = $session->get_table($descr_table);
   } else {
     $resultat = $session->get_table(Baseoid => $descr_table);
@@ -419,7 +441,7 @@ if (defined ($o_index)){
 }
 #get storage typetable for reference
 if (defined($o_storagetype)){
-  if (Net::SNMP->VERSION lt 4) {
+  if (version->parse(Net::SNMP->VERSION) < 4) {
     $stype = $session->get_table($storagetype_table);
   } else {
     $stype = $session->get_table(Baseoid => $storagetype_table);
@@ -443,7 +465,7 @@ my $perf_out=	undef;
 
 verb("Filter : $o_descr");
 
-foreach my $key ( keys %$resultat) {
+foreach my $key (sort { $$resultat{$a} cmp $$resultat{$b} } keys %$resultat) {
    verb("OID : $key, Desc : $$resultat{$key}");
    # test by regexp or exact match / include or exclude
    if (defined($o_negate)) {
@@ -454,7 +476,7 @@ foreach my $key ( keys %$resultat) {
      $test = defined($o_noreg)
                 ? $$resultat{$key} eq $o_descr
                 : $$resultat{$key} =~ /$o_descr/;
-   }
+   }  
   if ($test) {
     # get the index number of the interface
     my @oid_list = split (/\./,$key);
@@ -485,18 +507,28 @@ if ( $num_int == 0 ) { print "Unknown storage : $o_descr : ERROR\n" ; exit $ERRO
 
 my $result=undef;
 
-if (Net::SNMP->VERSION lt 4) {
-  $result = $session->get_request(@oids);
-} else {
-  if ($session->version == 0) {
-    # snmpv1
-    $result = $session->get_request(Varbindlist => \@oids);
-  } else {
-    # snmp v2c or v3 : get_bulk_request is not really good for this, so do simple get
-    $result = $session->get_request(Varbindlist => \@oids);
-    foreach my $key ( keys %$result) { verb("$key  : $$result{$key}"); }
-  }
-}
+if (version->parse(Net::SNMP->VERSION) < 4)
+   {
+   $result = $session->get_request(@oids);
+   }
+else
+   {
+      $result = $session->get_request(Varbindlist => \@oids);
+      foreach my $key ( keys %$result)
+             {
+             # Fix for filesystems larger 2 TB. More than 2 TB will cause an error because
+             # as defined in the RFC hrStorageSize is a 32 bit integer. So filesystems
+             # larger 2 TB report a negative value because the first bit will be interpreted
+             # as an algebraic sign. (0 = +, all others will be -). You simply have to add
+             # 2 to the power of 32 (4294967296) and it is fixed.
+             # Martin Fuerstenau, Oce Printing Systems, 25th Sept 2012
+             if ($$result{$key} < 0)
+                 {
+                 $$result{$key} = $$result{$key} + 4294967296;
+                 }
+             verb("$key  x $$result{$key}");
+             }
+   }
 
 if (!defined($result)) { printf("ERROR: Size table :%s.\n", $session->error); $session->close;
    exit $ERRORS{"UNKNOWN"};
@@ -514,8 +546,8 @@ if ( defined ($o_sum) && ($num_int > 1) ) {
   $$result{$used_table . $tindex[0]} *= $$result{$alloc_units . $tindex[0]};
   $$result{$alloc_units . $tindex[0]} = 1;
   for (my $i=1;$i<$num_int;$i++) {
-    $$result{$size_table . $tindex[0]} += ($$result{$size_table . $tindex[$i]}
-					  * $$result{$alloc_units . $tindex[$i]});
+    $$result{$size_table . $tindex[0]} += ($$result{$size_table . $tindex[$i]} 
+					  * $$result{$alloc_units . $tindex[$i]}); 
     $$result{$used_table . $tindex[0]} += ($$result{$used_table . $tindex[$i]}
 					  * $$result{$alloc_units . $tindex[$i]});
   }
@@ -528,82 +560,97 @@ my $warn_state=0;
 my $crit_state=0;
 my ($p_warn,$p_crit);
 my $output=undef;
+my $output_metric_val = 1024**2;
+my $output_metric = "M";
+# Set the metric 
+if (defined($o_giga)) {
+	$output_metric_val *= 1024;
+	$output_metric='G';
+}
+
 for ($i=0;$i<$num_int;$i++) {
   verb("Descr : $descr[$i]");
   verb("Size :  $$result{$size_table . $tindex[$i]}");
   verb("Used : $$result{$used_table . $tindex[$i]}");
   verb("Alloc : $$result{$alloc_units . $tindex[$i]}");
-  my $to = $$result{$size_table . $tindex[$i]} * $$result{$alloc_units . $tindex[$i]} / 1024**2;
+  
+  if (!defined($$result{$size_table . $tindex[$i]}) || 
+	!defined($$result{$used_table . $tindex[$i]}) || 
+	!defined ($$result{$alloc_units . $tindex[$i]})) {
+     print "Data not fully defined for storage ",$descr[$i]," : UNKNOWN\n";
+     exit $ERRORS{"UNKNOWN"};
+  }
+  my $to = $$result{$size_table . $tindex[$i]} * ( ( 100 - $o_reserve ) / 100 ) * $$result{$alloc_units . $tindex[$i]} / $output_metric_val;
   my $pu=undef;
   if ( $$result{$used_table . $tindex[$i]} != 0 ) {
-    $pu = $$result{$used_table . $tindex[$i]}*100 / $$result{$size_table . $tindex[$i]};
+	$pu = $$result{$used_table . $tindex[$i]}* 100 /  ( $$result{$size_table . $tindex[$i]} * ( 100 - $o_reserve ) / 100 );
   }else {
     $pu=0;
-  }
-  my $bu = $$result{$used_table . $tindex[$i]} *  $$result{$alloc_units . $tindex[$i]} / 1024**2;
+  } 
+  my $bu = $$result{$used_table . $tindex[$i]} *  $$result{$alloc_units . $tindex[$i]} / $output_metric_val;
   my $pl = 100 - $pu;
-  my $bl = ($$result{$size_table . $tindex[$i]}- $$result{$used_table . $tindex[$i]}) * $$result{$alloc_units . $tindex[$i]} / 1024**2;
+  my $bl = ( ( $$result{$size_table . $tindex[$i]} * ( ( 100 - $o_reserve ) / 100 ) - ( $$result{$used_table . $tindex[$i]} ) ) * $$result{$alloc_units . $tindex[$i]} / $output_metric_val );
   # add a ' ' if some data exists in $perf_out
   $perf_out .= " " if (defined ($perf_out)) ;
   ##### Ouputs and checks
   # Keep complete description fot performance output (in MB)
   my $Pdescr=$descr[$i];
-  $Pdescr =~ s/[`~!\$%\^&\*'"<>|\?,\(= )]/_/g;
+  $Pdescr =~ s/[`~!\$%\^&\*'"<>|\?,\(= )]/_/g; 
   ##### TODO : subs "," with something
  if (defined($o_shortL[2])) {
    if ($o_shortL[2] < 0) {$descr[$i]=substr($descr[$i],$o_shortL[2]);}
-   else {$descr[$i]=substr($descr[$i],0,$o_shortL[2]);}
+   else {$descr[$i]=substr($descr[$i],0,$o_shortL[2]);}   
  }
  if ($o_type eq "pu") { # Checks % used
     my $locstate=0;
-	$p_warn=$o_warn*$to/100;$p_crit=$o_crit*$to/100;
+	$p_warn=$o_warn*$to/100;$p_crit=$o_crit*$to/100; 
         (($pu >= $o_crit) && ($locstate=$crit_state=1))
 	   || (($pu >= $o_warn) && ($locstate=$warn_state=1));
 	if (defined($o_shortL[2])) {}
 	if (!defined($o_shortL[0]) || ($locstate==1)) { # print full output if warn or critical state
-	  $output.=sprintf ("%s: %.0f%%used(%.0fMB/%.0fMB) ",$descr[$i],$pu,$bu,$to);
+	  $output.=sprintf ("%s: %.0f%%used(%.0f%sB/%.0f%sB) ",$descr[$i],$pu,$bu,$output_metric,$to,$output_metric);
     } elsif ($o_shortL[0] == 1) {
 	  $output.=sprintf ("%s: %.0f%% ",$descr[$i],$pu);
-	}
+	} 
   }
-
+  
   if ($o_type eq 'bu') { # Checks MBytes used
     my $locstate=0;
 	$p_warn=$o_warn;$p_crit=$o_crit;
-    ( ($bu >= $o_crit) && ($locstate=$crit_state=1) )
+    ( ($bu >= $o_crit) && ($locstate=$crit_state=1) ) 
 	  || ( ($bu >= $o_warn) && ($locstate=$warn_state=1) );
 	if (!defined($o_shortL[0]) || ($locstate==1)) { # print full output if warn or critical state
-      $output.=sprintf("%s: %.0fMBused/%.0fMB (%.0f%%) ",$descr[$i],$bu,$to,$pu);
+      $output.=sprintf("%s: %.0f%sBused/%.0f%sB (%.0f%%) ",$descr[$i],$bu,$output_metric,$to,$output_metric,$pu);
     } elsif ($o_shortL[0] == 1) {
-	  $output.=sprintf("%s: %.0fMB ",$descr[$i],$bu);
-    }
+	  $output.=sprintf("%s: %.0f%sB ",$descr[$i],$bu,$output_metric);
+    } 
  }
-
+ 
   if ($o_type eq 'bl') {
     my $locstate=0;
     $p_warn=$to-$o_warn;$p_crit=$to-$o_crit;
-    ( ($bl <= $o_crit) && ($locstate=$crit_state=1) )
+    ( ($bl <= $o_crit) && ($locstate=$crit_state=1) ) 
 	  || ( ($bl <= $o_warn) && ($locstate=$warn_state=1) );
 	if (!defined($o_shortL[0]) || ($locstate==1)) { # print full output if warn or critical state
-      $output.=sprintf ("%s: %.0fMBleft/%.0fMB (%.0f%%) ",$descr[$i],$bl,$to,$pl);
+      $output.=sprintf ("%s: %.0f%sBleft/%.0f%sB (%.0f%%) ",$descr[$i],$bl,$output_metric,$to,$output_metric,$pl);
     } elsif ($o_shortL[0] == 1) {
-	  $output.=sprintf ("%s: %.0fMB ",$descr[$i],$bl);
-    }
+	  $output.=sprintf ("%s: %.0f%sB ",$descr[$i],$bl,$output_metric);
+    } 
  }
-
+  
   if ($o_type eq 'pl') {
     my $locstate=0;
     $p_warn=(100-$o_warn)*$to/100;$p_crit=(100-$o_crit)*$to/100;
-    ( ($pl <= $o_crit) && ($locstate=$crit_state=1) )
+    ( ($pl <= $o_crit) && ($locstate=$crit_state=1) ) 
 	  || ( ($pl <= $o_warn) && ($locstate=$warn_state=1) );
 	if (!defined($o_shortL[0]) || ($locstate==1)) { # print full output if warn or critical state
-      $output.=sprintf ("%s: %.0f%%left(%.0fMB/%.0fMB) ",$descr[$i],$pl,$bl,$to);
+      $output.=sprintf ("%s: %.0f%%left(%.0f%sB/%.0f%sB) ",$descr[$i],$pl,$bl,$output_metric,$to,$output_metric);
     } elsif ($o_shortL[0] == 1) {
 	  $output.=sprintf ("%s: %.0f%% ",$descr[$i],$pl);
-    }
+    } 
   }
   # Performance output (in MB)
-  $perf_out .= "'".$Pdescr. "'=" . round($bu,0) . "MB;" . round($p_warn,0)
+  $perf_out .= "'".$Pdescr. "'=" . round($bu,$UOM_float) . $output_metric ."B;" . round($p_warn,0) 
 	       . ";" . round($p_crit,0) . ";0;" . round($to,0);
 }
 
@@ -613,8 +660,8 @@ my $comp_oper=undef;
 my $comp_unit=undef;
 ($o_type eq "pu") && ($comp_oper ="<") && ($comp_unit ="%");
 ($o_type eq "pl") && ($comp_oper =">") && ($comp_unit ="%");
-($o_type eq "bu") && ($comp_oper ="<") && ($comp_unit ="MB");
-($o_type eq 'bl') && ($comp_oper =">") && ($comp_unit ="MB");
+($o_type eq "bu") && ($comp_oper ="<") && ($comp_unit = $output_metric."B");
+($o_type eq 'bl') && ($comp_oper =">") && ($comp_unit =$output_metric."B");
 
 if (!defined ($output)) { $output="All selected storages "; }
 
