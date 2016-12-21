@@ -618,7 +618,7 @@ my $file_history=200;   # number of lines of data to keep in file
 # SNMP OID Datas
 my $inter_table= '.1.3.6.1.2.1.2.2.1';
 my $index_table = '1.3.6.1.2.1.2.2.1.1';
-my $descr_table = '1.3.6.1.2.1.2.2.1.2';
+my $descr_table = '1.3.6.1.2.1.31.1.1.1.1';
 my $oper_table = '1.3.6.1.2.1.2.2.1.8.';
 my $admin_table = '1.3.6.1.2.1.2.2.1.7.';
 my $speed_table = '1.3.6.1.2.1.2.2.1.5.';
